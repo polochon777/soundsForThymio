@@ -19,7 +19,9 @@
  #
 
 
-import sys, getopt, subprocess
+import sys, os, getopt, subprocess
+
+TMP_FILE = 'tmp.wav'
 
 def help(mode):
     if mode == 'full':
@@ -57,15 +59,23 @@ def main(argv):
         sys.exit(1)
 
     #Run
-    cmd_str = f'ffmpeg -i {inputFile} -f wav -bitexact -map_metadata -1 -c:a pcm_u8 -ac 1 -ar 8000 tmp.wav'
+    cmd_str = f'ffmpeg -i {inputFile} -f wav -bitexact -map_metadata -1 -c:a pcm_u8 -ac 1 -ar 8000 {TMP_FILE}'
     p = subprocess.run(cmd_str, shell=True)
 
     if p.returncode == 0:
         #Now patch files: see https://trac.ffmpeg.org/ticket/10229
-        cmd_str = f'./patchThymioWav.py -i tmp.wav -o {outputFile}'
+        myPath = os.path.abspath(os.path.dirname(__file__))
+        cmd_str = f'{myPath}/patchThymioWav.py -i {TMP_FILE} -o {outputFile}'
         p = subprocess.run(cmd_str, shell=True)    
+        #File patched
         if p.returncode == 0:
+            os.remove(TMP_FILE) 
+            print("success: file converted and patched!")
+        #No patch needed
+        elif p.returncode == 2:
+            os.rename(TMP_FILE, outputFile) 
             print("success: file converted!")
+        #Error
         else:
             print("error: something went wrong")
             sys.exit(2)

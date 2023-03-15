@@ -62,8 +62,8 @@ def sizeFix(inputFile, outputFile):
     
     ckSizeDec = check(inputFile)
     if ckSizeDec == True:
-        #Nothing to do, exit
-        sys.exit()
+        print('Nothing to patch, exit')
+        sys.exit(2)
 
     #Duplicate file
     with open(inputFile, 'rb') as f1: 
@@ -74,7 +74,7 @@ def sizeFix(inputFile, outputFile):
 
     #Patch file
     size = (ckSizeDec-HEADER_SIZE).to_bytes(CKSIZE_LENGTH,'little')                                   
-    f2 = open("filename.wav", "r+b")  
+    f2 = open(outputFile, "r+b")  
     f2.seek(SAMPLES_CKSIZE_OFFSET,0)
     f2.write(size)
     f2.close()
@@ -90,7 +90,7 @@ def main(argv):
         opts, args = getopt.getopt(argv,"hci:o:",["check","ifile=","ofile="])
     except getopt.GetoptError:
         print ('patchThymioWav.py -i <inputfile> -o <outputfile>')
-        sys.exit(2)
+        sys.exit(1)
 
     for opt, arg in opts:
         if opt == '-h':
@@ -118,7 +118,7 @@ def main(argv):
             print("Success: Your file seems OK!")
         else:    
             print("Error: Your file cannot be read by Thymio")
-            sys.exit(2)
+            sys.exit(3)
 
     if outputFile:
         sizeFix(inputFile, outputFile)
