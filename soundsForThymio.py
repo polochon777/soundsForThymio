@@ -18,7 +18,6 @@
  # along with this program. If not, see <http://www.gnu.org/licenses/>.
  #
 
-
 import sys, os, getopt, subprocess
 
 TMP_FILE = 'tmp.wav'
@@ -30,10 +29,8 @@ def help(mode):
               ''')
     if mode == 'full' or mode == 'short':
             print ('''soundsForThymio Usage:
-    Patch a file:
-        patchThymioWav.py -i <inputfile.wav> -o <outputfile.wav>
-    Check a file:
-        patchThymioWav.py -c -i <inputFile.wav>
+    Convert a file:
+        soundsForThymio.py -i <inputfile.wav> -o <outputfile.wav>
         ''')
 
 def main(argv):
@@ -59,6 +56,12 @@ def main(argv):
         sys.exit(1)
 
     #Run
+    cmd_str = f'ffmpeg -version'
+    p = subprocess.run(cmd_str, shell=True)
+    if p.returncode != 0:
+        print("Please install ffmpeg (https://ffmpeg.org/)")
+        sys.exit(1)
+
     cmd_str = f'ffmpeg -i {inputFile} -f wav -bitexact -map_metadata -1 -c:a pcm_u8 -ac 1 -ar 8000 {TMP_FILE}'
     p = subprocess.run(cmd_str, shell=True)
 

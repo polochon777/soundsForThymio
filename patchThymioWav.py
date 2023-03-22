@@ -21,15 +21,28 @@
 
 import sys, getopt
 
+#Offsets & Lengths
 HEADER_SIZE = 36
 CKSIZE_OFFSET = 4
+SAMPLERATE_OFFSET = 24
+BYTERATE_OFFSET = 28
+LIST_OFFSET = 36
 SAMPLES_CKSIZE_OFFSET = 40
-CKSIZE_LENGTH = 4
+WORD_LENGTH = 4
+
+#Errors
+NO_ERROR = 0
+DATASIZE_ERROR = 1
+BYTERATE_ERROR = 2
+SAMPLERATE_ERROR = 3
+METADATA_ERROR = 4
+
 
 def help(mode):
     if mode == 'full':
             print('''patchThymioWav v0.1
     This program fix samples size field encoding issues for audio converters built on ffmpeg. See issue https://trac.ffmpeg.org/ticket/10229
+    This programs can also check (without 100% guarantee!) if the file is well formated or not. 
               ''')
     if mode == 'full' or mode == 'short':
             print ('''patchThymioWav Usage:
@@ -39,29 +52,43 @@ def help(mode):
         patchThymioWav.py -c -i <inputFile.wav>
         ''')
 
+
+def readWord(f, offset):
+    f.seek(offset, 0)
+    hexaWord = f.read(WORD_LENGTH)
+    return int.from_bytes(hexaWord, byteorder='little') 
+
+
 def check(inputFile):
     f = open(inputFile, 'rb')
 
-    #Read ckSize
-    f.seek(CKSIZE_OFFSET, 0)
-    ckSize = f.read(CKSIZE_LENGTH)
-
-    ckSizeDec= int.from_bytes(ckSize, byteorder='little') 
-    
-    #Read ckSize for samples
-    f.seek(SAMPLES_CKSIZE_OFFSET,0)
-    dataSize = f.read(CKSIZE_LENGTH)
-    dataSizeDec= int.from_bytes(dataSize, byteorder='little')
+    # Read words
+    ckSize= readWord(f, CKSIZE_OFFSET)
+    sampleRate= readWord(f, SAMPLERATE_OFFSET)
+    byteRate= readWord(f, BYTERATE_OFFSET)
+    dataSize= readWord(f, SAMPLES_CKSIZE_OFFSET)
+    metadata = readWord(f, LIST_OFFSET)
     
     f.close()
 
-    return True if(ckSizeDec - HEADER_SIZE == dataSizeDec) else ckSizeDec
+    if(metadata == 1414744396): #Decimal value for LIST word
+        error = METADATA_ERROR
+    elif(ckSize - HEADER_SIZE != dataSize):
+        error = DATASIZE_ERROR
+    elif(sampleRate < 7800 or sampleRate > 8000 ):
+        error = SAMPLERATE_ERROR
+    elif(sampleRate != byteRate):
+        error = BYTERATE_ERROR
+    else:
+        error = NO_ERROR
+
+    return error
 
 
 def sizeFix(inputFile, outputFile):
     
-    ckSizeDec = check(inputFile)
-    if ckSizeDec == True:
+    error = check(inputFile)
+    if error == NO_ERROR:
         print('Nothing to patch, exit')
         sys.exit(2)
 
@@ -72,8 +99,13 @@ def sizeFix(inputFile, outputFile):
     f1.close()
     f2.close()    
 
+    # Get size
+    f = open(inputFile, 'rb')
+    ckSize= readWord(f, CKSIZE_OFFSET)
+    f.close()
+
     #Patch file
-    size = (ckSizeDec-HEADER_SIZE).to_bytes(CKSIZE_LENGTH,'little')                                   
+    size = (ckSize-HEADER_SIZE).to_bytes(WORD_LENGTH,'little')                                   
     f2 = open(outputFile, "r+b")  
     f2.seek(SAMPLES_CKSIZE_OFFSET,0)
     f2.write(size)
@@ -114,10 +146,19 @@ def main(argv):
 
     if checkFile==True:
         result = check(inputFile)
-        if result == True:
+        if(result == NO_ERROR):
             print("Success: Your file seems OK!")
+            sys.exit(0)
         else:    
             print("Error: Your file cannot be read by Thymio")
+            if(result == DATASIZE_ERROR):
+                print("Data size error")
+            elif(result == BYTERATE_ERROR):
+                print("Byte rate error")
+            elif(result == SAMPLERATE_ERROR):
+                print("Sample rate error")
+            elif(result == METADATA_ERROR):
+                print("Seems there are some metadatas not removed")
             sys.exit(3)
 
     if outputFile:
